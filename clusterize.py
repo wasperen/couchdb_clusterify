@@ -12,7 +12,7 @@ def init_session(node, admin, password):
     return session
 
 
-def enable_cluster(session, node, admin, password, nr_nodes):
+def local_enable_cluster(session, node, admin, password, nr_nodes):
     # {
     #   "action":"enable_cluster",
     #   "username":"admin",
@@ -45,7 +45,7 @@ def enable_cluster(session, node, admin, password, nr_nodes):
     return session.post(_ENDPOINT.format(node=node), json=data)
 
 
-def add_node(session, node1, other_node, admin, password, nr_nodes):
+def remote_enable_cluster(session, node1, other_node, admin, password, nr_nodes):
     # {
     #   "action":"enable_cluster",
     #   "username":"admin",
@@ -81,8 +81,10 @@ def add_node(session, node1, other_node, admin, password, nr_nodes):
         remote_current_password=password
     )
     print(data)
-    response1 = session.post(_ENDPOINT.format(node=node1), json=data)
+    return session.post(_ENDPOINT.format(node=node1), json=data)
 
+
+def add_node(session, node1, other_node, admin, password):
     # {
     #   "action":"add_node",
     #   "username":"admin",
@@ -109,8 +111,7 @@ def add_node(session, node1, other_node, admin, password, nr_nodes):
         singlenode=False
     )
     print(data)
-    response2 = session.post(_ENDPOINT.format(node=node1), json=data)
-    return response1, response2
+    return session.post(_ENDPOINT.format(node=node1), json=data)
 
 
 def finish_cluster(session, node):
@@ -135,28 +136,32 @@ if __name__ == "__main__":
     parser.add_argument('--admin', type=str, required=False, default="admin", help="name of admin user")
     parser.add_argument('--password', type=str, required=False, default="admin", help="password of admin user")
 
-    args = parser.parse_args()
+    ARGS = parser.parse_args()
 
-    other_nodes = [args.node2, args.node3, *args.nodes]
-    nr_nodes = 1 + len(other_nodes)
-
-    # init session
-    SESSION = init_session(args.node1, args.admin, args.password)
+    OTHER_NODES = [ARGS.node2, ARGS.node3, *ARGS.nodes]
+    NR_NODES = 1 + len(OTHER_NODES)
 
     # add nodes together in cluster
-    for node in other_nodes:
-        print(f'enable clustering for first node {args.node1}')
-        r = enable_cluster(SESSION, args.node1, args.admin, args.password, nr_nodes)
+    for NODE in OTHER_NODES:
+        print(f'locally enable clustering for first node {ARGS.node1}')
+        SESSION = init_session(ARGS.node1, ARGS.admin, ARGS.password)
+        r = local_enable_cluster(SESSION, ARGS.node1, ARGS.admin, ARGS.password, NR_NODES)
+        print(r.json())
+        SESSION.close()
+
+        print(f'remotely enable clustering for remote node {NODE}')
+        SESSION = init_session(ARGS.node1, ARGS.admin, ARGS.password)
+        r = remote_enable_cluster(SESSION, ARGS.node1, NODE, ARGS.admin, ARGS.password, NR_NODES)
         print(r.json())
 
-        print(f'add node {node} to first node {args.node1}')
-        r1, r2 = add_node(SESSION, args.node1, node, args.admin, args.password, nr_nodes)
-        print(r1.json())
-        print(r2.json())
+        print(f'add node {NODE} to cluster')
+        r = add_node(SESSION, ARGS.node1, NODE, ARGS.admin, ARGS.password)
+        print(r.json())
+        SESSION.close()
 
     # finalize cluster
-    print(f'finalizing clustering via first node {args.node1}')
-    r = finish_cluster(SESSION, args.node1)
+    print(f'finalizing clustering via first node {ARGS.node1}')
+    SESSION = init_session(ARGS.node1, ARGS.admin, ARGS.password)
+    r = finish_cluster(SESSION, ARGS.node1)
     print(r.json())
-
     SESSION.close()
