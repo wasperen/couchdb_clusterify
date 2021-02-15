@@ -141,6 +141,9 @@ if __name__ == "__main__":
     OTHER_NODES = [ARGS.node2, ARGS.node3, *ARGS.nodes]
     NR_NODES = 1 + len(OTHER_NODES)
 
+    # Work around https://github.com/apache/couchdb/issues/2858
+    requests.get("http://" + ARGS.node1 + ":5984/")
+
     # add nodes together in cluster
     for NODE in OTHER_NODES:
         print(f'locally enable clustering for first node {ARGS.node1}')
